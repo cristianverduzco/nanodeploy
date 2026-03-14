@@ -1,0 +1,11 @@
+apiVersion: nanodeploy.io/v1alpha1
+kind: ManagedService
+metadata:
+  name: my-postgres
+  namespace: default
+spec:
+  type: postgresql
+  version: "15"
+  replicas: 1
+  storageGB: 5
+  databaseName: appdb
