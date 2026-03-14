@@ -15,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	v1alpha1 "github.com/cristianverduzco/nanodeploy/api/v1alpha1"
+	"github.com/cristianverduzco/nanodeploy/internal/api"
 	"github.com/cristianverduzco/nanodeploy/internal/controller"
 )
 
@@ -81,6 +82,15 @@ func main() {
 		setupLog.Error(err, "Unable to set up ready check")
 		os.Exit(1)
 	}
+
+	// Start the API server in a goroutine alongside the operator
+	apiServer := api.NewServer(mgr.GetClient())
+	go func() {
+		setupLog.Info("Starting NanoDeploy API server", "addr", ":9090")
+		if err := apiServer.Start(":9090"); err != nil {
+			setupLog.Error(err, "API server failed")
+		}
+	}()
 
 	setupLog.Info("Starting NanoDeploy operator")
 
