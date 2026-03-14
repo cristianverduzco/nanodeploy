@@ -1,0 +1,12 @@
+# Git
+.git
+.gitignore
+
+# Dev files
+*.md
+bin/
+web/
+config/
+
+# Go test files
+**/*_test.go
