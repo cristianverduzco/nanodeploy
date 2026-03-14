@@ -76,7 +76,7 @@ spec:
       containers:
         - name: operator
           image: nanodeploy-operator:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Never
           args:
             - --leader-elect=false
             - --metrics-bind-address=:8080
