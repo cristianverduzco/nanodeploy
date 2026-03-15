@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -17,10 +18,17 @@ type Server struct {
 }
 
 func NewServer(client client.Client) *Server {
+	gin.SetMode(gin.ReleaseMode)
 	s := &Server{
 		client: client,
 		router: gin.Default(),
 	}
+	s.router.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:3000"},
+		AllowMethods:     []string{"GET", "POST", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type"},
+		AllowCredentials: true,
+	}))
 	s.registerRoutes()
 	return s
 }
@@ -33,13 +41,13 @@ func (s *Server) registerRoutes() {
 		api.POST("/services", s.createService)
 		api.DELETE("/services/:namespace/:name", s.deleteService)
 	}
-
 	s.router.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 }
 
 func (s *Server) Start(addr string) error {
+	s.router.SetTrustedProxies(nil)
 	return s.router.Run(addr)
 }
 
@@ -75,13 +83,13 @@ func (s *Server) getService(c *gin.Context) {
 // createService provisions a new ManagedService
 func (s *Server) createService(c *gin.Context) {
 	var req struct {
-		Name         string                    `json:"name" binding:"required"`
-		Namespace    string                    `json:"namespace" binding:"required"`
-		Type         v1alpha1.ServiceType      `json:"type" binding:"required"`
-		Version      string                    `json:"version" binding:"required"`
-		Replicas     int32                     `json:"replicas"`
-		StorageGB    int32                     `json:"storageGB"`
-		DatabaseName string                    `json:"databaseName"`
+		Name         string               `json:"name" binding:"required"`
+		Namespace    string               `json:"namespace" binding:"required"`
+		Type         v1alpha1.ServiceType `json:"type" binding:"required"`
+		Version      string               `json:"version" binding:"required"`
+		Replicas     int32                `json:"replicas"`
+		StorageGB    int32                `json:"storageGB"`
+		DatabaseName string               `json:"databaseName"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
