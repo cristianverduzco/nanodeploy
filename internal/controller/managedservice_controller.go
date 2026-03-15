@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/prometheus/client_golang/prometheus"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -17,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	v1alpha1 "github.com/cristianverduzco/nanodeploy/api/v1alpha1"
+	ndmetrics "github.com/cristianverduzco/nanodeploy/internal/metrics"
 )
 
 // ManagedServiceReconciler reconciles a ManagedService object
@@ -41,12 +43,15 @@ func (r *ManagedServiceReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	managedService := &v1alpha1.ManagedService{}
 	if err := r.Get(ctx, req.NamespacedName, managedService); err != nil {
 		if errors.IsNotFound(err) {
-			// Resource was deleted — nothing to do
 			logger.Info("ManagedService not found, likely deleted", "name", req.Name)
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, fmt.Errorf("failed to get ManagedService: %w", err)
 	}
+
+	// Start reconcile duration timer
+	timer := prometheus.NewTimer(ndmetrics.ReconcileDuration.WithLabelValues(string(managedService.Spec.Type)))
+	defer timer.ObserveDuration()
 
 	// 2. Set initial phase if not set
 	if managedService.Status.Phase == "" {
@@ -56,12 +61,21 @@ func (r *ManagedServiceReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	// 3. Route to the correct provisioner based on service type
+	// 3. Update metrics
+	ndmetrics.ManagedServicesTotal.WithLabelValues(
+		string(managedService.Spec.Type),
+		string(managedService.Status.Phase),
+	).Set(1)
+
+	// 4. Route to the correct provisioner based on service type
+	var result ctrl.Result
+	var err error
+
 	switch managedService.Spec.Type {
 	case v1alpha1.ServiceTypePostgresql:
-		return r.reconcilePostgresql(ctx, managedService)
+		result, err = r.reconcilePostgresql(ctx, managedService)
 	case v1alpha1.ServiceTypeRedis:
-		return r.reconcileRedis(ctx, managedService)
+		result, err = r.reconcileRedis(ctx, managedService)
 	default:
 		msg := fmt.Sprintf("unsupported service type: %s", managedService.Spec.Type)
 		logger.Error(nil, msg)
@@ -70,6 +84,13 @@ func (r *ManagedServiceReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		}
 		return ctrl.Result{}, nil
 	}
+
+	// 5. Track errors
+	if err != nil {
+		ndmetrics.ReconcileErrorsTotal.WithLabelValues(string(managedService.Spec.Type)).Inc()
+	}
+
+	return result, err
 }
 
 // reconcilePostgresql handles the full lifecycle of a PostgreSQL ManagedService
@@ -109,7 +130,6 @@ func (r *ManagedServiceReconciler) reconcilePostgresql(ctx context.Context, ms *
 
 // reconcileRedis handles the full lifecycle of a Redis ManagedService
 func (r *ManagedServiceReconciler) reconcileRedis(ctx context.Context, ms *v1alpha1.ManagedService) (ctrl.Result, error) {
-	// Placeholder — we'll implement this in Phase 2
 	return ctrl.Result{}, r.updateStatus(ctx, ms, v1alpha1.ServicePhaseFailed, "Redis provisioner not yet implemented")
 }
 
@@ -118,14 +138,12 @@ func (r *ManagedServiceReconciler) ensureDeployment(ctx context.Context, ms *v1a
 	deployment := &appsv1.Deployment{}
 	err := r.Get(ctx, types.NamespacedName{Name: ms.Name, Namespace: ms.Namespace}, deployment)
 	if err == nil {
-		// Already exists
 		return nil
 	}
 	if !errors.IsNotFound(err) {
 		return fmt.Errorf("failed to get Deployment: %w", err)
 	}
 
-	// Build the Deployment
 	desired := r.buildDeployment(ms)
 	if err := ctrl.SetControllerReference(ms, desired, r.Scheme); err != nil {
 		return fmt.Errorf("failed to set controller reference: %w", err)
@@ -156,9 +174,9 @@ func (r *ManagedServiceReconciler) ensureService(ctx context.Context, ms *v1alph
 // buildDeployment constructs the Deployment object for a ManagedService
 func (r *ManagedServiceReconciler) buildDeployment(ms *v1alpha1.ManagedService) *appsv1.Deployment {
 	labels := map[string]string{
-		"app":                          ms.Name,
-		"nanodeploy.io/managed-by":     "nanodeploy",
-		"nanodeploy.io/service-type":   string(ms.Spec.Type),
+		"app":                        ms.Name,
+		"nanodeploy.io/managed-by":   "nanodeploy",
+		"nanodeploy.io/service-type": string(ms.Spec.Type),
 	}
 
 	replicas := ms.Spec.Replicas
