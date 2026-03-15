@@ -1,0 +1,15 @@
+apiVersion: v2
+name: nanodeploy
+description: A Kubernetes operator for provisioning and lifecycle-managing stateful infrastructure services
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - kubernetes
+  - operator
+  - postgresql
+  - redis
+  - infrastructure
+maintainers:
+  - name: Cristian Verduzco
+    url: https://github.com/cristianverduzco

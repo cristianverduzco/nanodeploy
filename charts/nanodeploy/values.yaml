@@ -1,0 +1,42 @@
+# Default values for nanodeploy
+
+image:
+  repository: nanodeploy-operator
+  tag: latest
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+# Namespace where the operator will be deployed
+namespace: nanodeploy-system
+
+# Resource limits for the operator pod
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+# Leader election — enable for HA (multiple replicas)
+leaderElection: false
+
+# Metrics configuration
+metrics:
+  enabled: true
+  port: 8080
+
+# Health probe configuration
+healthProbe:
+  port: 8081
+
+# API server configuration
+api:
+  port: 9090
+
+# ServiceMonitor for Prometheus Operator auto-discovery
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  namespace: monitoring
