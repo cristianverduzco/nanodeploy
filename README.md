@@ -159,11 +159,11 @@ The REST API is exposed at `:9090`:
 
 ## Supported Services
 
-| Service | Status |
-|---|---|
-| PostgreSQL | ✅ Supported |
-| Redis | 🚧 Coming soon |
-| RabbitMQ | 🚧 Coming soon |
+| Service | Status | Notes |
+| --- | --- | --- |
+| PostgreSQL | ✅ Implemented | Full reconciliation, self-healing, endpoint provisioning |
+| Redis | 🟡 Framework ready | CRD types and reconciler skeleton in place; provisioner-specific logic in progress |
+| RabbitMQ | 🚧 Planned | |
 
 ---
 
